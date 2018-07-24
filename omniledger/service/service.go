@@ -164,7 +164,7 @@ func (s *Service) CreateGenesisBlock(req *CreateGenesisBlock) (
 	// reference to the actual genesis transaction.
 	transaction := []ClientTransaction{{
 		Instructions: []Instruction{{
-			InstanceID: InstanceID{DarcID: req.GenesisDarc.GetID()},
+			InstanceID: InstanceIDFromSlice(req.GenesisDarc.GetID()),
 			Nonce:      Nonce{},
 			Index:      0,
 			Length:     1,
@@ -256,13 +256,6 @@ func (s *Service) SetPropagationTimeout(p time.Duration) {
 	s.skService().SetPropTimeout(p)
 }
 
-func toInstanceID(dID darc.ID) InstanceID {
-	return InstanceID{
-		DarcID: dID,
-		SubID:  SubID{},
-	}
-}
-
 func (s *Service) verifyAndFilterTxs(scID skipchain.SkipBlockID, ts []ClientTransaction) []ClientTransaction {
 	var validTxs []ClientTransaction
 	for _, t := range ts {
@@ -285,7 +278,7 @@ func (s *Service) verifyClientTx(scID skipchain.SkipBlockID, tx ClientTransactio
 }
 
 func (s *Service) verifyInstruction(scID skipchain.SkipBlockID, instr Instruction) error {
-	d, err := s.loadLatestDarc(scID, instr.InstanceID.DarcID)
+	d, err := s.loadLatestDarc(scID, instr.DarcID)
 	if err != nil {
 		return errors.New("darc not found: " + err.Error())
 	}
@@ -297,11 +290,14 @@ func (s *Service) verifyInstruction(scID skipchain.SkipBlockID, instr Instructio
 	// A callback is required to get any delegated DARC(s) during
 	// expression evaluation.
 	err = req.VerifyWithCB(d, func(str string, latest bool) *darc.Darc {
+		if len(str) < 5 || string(str[0:5]) != "darc:" {
+			return nil
+		}
 		darcID, err := hex.DecodeString(str[5:])
 		if err != nil {
 			return nil
 		}
-		d, err := LoadDarcFromColl(s.GetCollectionView(scID), InstanceID{darcID, SubID{}}.Slice())
+		d, err := LoadDarcFromColl(s.GetCollectionView(scID), darcID)
 		if err != nil {
 			return nil
 		}
@@ -552,11 +548,11 @@ func (s *Service) loadLatestDarc(scID skipchain.SkipBlockID, dID darc.ID) (*darc
 	if colldb == nil {
 		return nil, fmt.Errorf("collection for skipchain ID %s does not exist", scID.Short())
 	}
-	value, contract, err := getValueContract(&roCollection{colldb.coll, scID}, toInstanceID(dID).Slice())
+	value, contract, err := getValueContract(&roCollection{colldb.coll, scID}, InstanceIDFromSlice(dID).Slice())
 	if err != nil {
 		return nil, err
 	}
-	if string(contract) != "darc" {
+	if string(contract) != ContractDarcID {
 		return nil, fmt.Errorf("for darc %x, expected Kind to be 'darc' but got '%v'", dID, string(contract))
 	}
 	return darc.NewFromProtobuf(value)
@@ -901,13 +897,11 @@ func (s *Service) startViewChange(scID skipchain.SkipBlockID) error {
 
 	ctx := ClientTransaction{
 		Instructions: []Instruction{{
-			InstanceID: InstanceID{
-				DarcID: genesisDarcID,
-				SubID:  oneSubID,
-			},
-			Nonce:  GenNonce(),
-			Index:  0,
-			Length: 1,
+			DarcID:     genesisDarcID,
+			InstanceID: DeriveConfigID(genesisDarcID),
+			Nonce:      GenNonce(),
+			Index:      0,
+			Length:     1,
 			Invoke: &Invoke{
 				Command: "view_change",
 				Args: []Argument{{

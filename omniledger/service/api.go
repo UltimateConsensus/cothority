@@ -126,15 +126,15 @@ func (c *Client) GetGenDarc() (*darc.Darc, error) {
 		return nil, errors.New("not enough records")
 	}
 	contractBuf := vs[1]
-	if string(contractBuf) != "config" {
+	if string(contractBuf) != ContractConfigID {
 		return nil, errors.New("expected contract to be config but got: " + string(contractBuf))
 	}
-	darcBuf := vs[0]
-	if len(darcBuf) != 32 {
+	darcId := vs[0]
+	if len(darcId) != 32 {
 		return nil, errors.New("genesis darc ID is wrong length")
 	}
 
-	p, err = c.GetProof(InstanceID{DarcID: darcBuf}.Slice())
+	p, err = c.GetProof(darcId)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func (c *Client) GetGenDarc() (*darc.Darc, error) {
 		return nil, errors.New("not enough records")
 	}
 	contractBuf = vs[1]
-	if string(contractBuf) != "darc" {
+	if string(contractBuf) != ContractDarcID {
 		return nil, errors.New("expected contract to be darc but got: " + string(contractBuf))
 	}
 	d, err := darc.NewFromProtobuf(vs[0])
@@ -162,8 +162,8 @@ func (c *Client) GetGenDarc() (*darc.Darc, error) {
 // from OmniLedger.
 func (c *Client) GetChainConfig() (*ChainConfig, error) {
 	d, err := c.GetGenDarc()
+	cfid := DeriveConfigID(d.GetBaseID())
 
-	cfid := InstanceID{d.GetBaseID(), oneSubID}
 	p, err := c.GetProof(cfid.Slice())
 	if err != nil {
 		return nil, err
@@ -177,7 +177,7 @@ func (c *Client) GetChainConfig() (*ChainConfig, error) {
 		return nil, errors.New("not enough records")
 	}
 	contractBuf := vs[1]
-	if string(contractBuf) != "config" {
+	if string(contractBuf) != ContractConfigID {
 		return nil, errors.New("expected contract to be config but got: " + string(contractBuf))
 	}
 	config := &ChainConfig{}
@@ -303,7 +303,7 @@ func SignInstruction(inst *Instruction, signers ...darc.Signer) error {
 	case inst.Delete != nil:
 		action = "delete"
 	}
-	req, err := darc.InitAndSignRequest(inst.InstanceID.DarcID, darc.Action(action),
+	req, err := darc.InitAndSignRequest(inst.DarcID, darc.Action(action),
 		inst.Hash(), signers...)
 	if err != nil {
 		return err

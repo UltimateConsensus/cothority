@@ -7,10 +7,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func subidStr(s string) (n SubID) {
-	copy(n[:], s)
-	return n
+func id(s string) InstanceID {
+	return InstanceIDFromSlice([]byte(s))
 }
+
 func darcidStr(s string) (n darc.ID) {
 	n = make([]byte, 32)
 	copy(n, s)
@@ -21,30 +21,24 @@ func TestSortTransactions(t *testing.T) {
 	ts1 := []ClientTransaction{
 		{
 			Instructions: []Instruction{{
-				InstanceID: InstanceID{
-					DarcID: darcidStr("key1"),
-					SubID:  subidStr("nonce1"),
-				},
+				DarcID:     darcidStr("key1"),
+				InstanceID: id("nonce1"),
 				Spawn: &Spawn{
 					ContractID: "kind1",
 				},
 			}}},
 		{
 			Instructions: []Instruction{{
-				InstanceID: InstanceID{
-					DarcID: darcidStr("key2"),
-					SubID:  subidStr("nonce2"),
-				},
+				DarcID:     darcidStr("key2"),
+				InstanceID: id("nonce2"),
 				Spawn: &Spawn{
 					ContractID: "kind2",
 				},
 			}}},
 		{
 			Instructions: []Instruction{{
-				InstanceID: InstanceID{
-					DarcID: darcidStr("key3"),
-					SubID:  subidStr("nonce3"),
-				},
+				DarcID:     darcidStr("key3"),
+				InstanceID: id("nonce3"),
 				Spawn: &Spawn{
 					ContractID: "kind3",
 				},
@@ -53,30 +47,24 @@ func TestSortTransactions(t *testing.T) {
 	ts2 := []ClientTransaction{
 		{
 			Instructions: []Instruction{{
-				InstanceID: InstanceID{
-					DarcID: darcidStr("key2"),
-					SubID:  subidStr("nonce2"),
-				},
+				DarcID:     darcidStr("key2"),
+				InstanceID: id("nonce2"),
 				Spawn: &Spawn{
 					ContractID: "kind2",
 				},
 			}}},
 		{
 			Instructions: []Instruction{{
-				InstanceID: InstanceID{
-					DarcID: darcidStr("key1"),
-					SubID:  subidStr("nonce1"),
-				},
+				DarcID:     darcidStr("key1"),
+				InstanceID: id("nonce1"),
 				Spawn: &Spawn{
 					ContractID: "kind1",
 				},
 			}}},
 		{
 			Instructions: []Instruction{{
-				InstanceID: InstanceID{
-					DarcID: darcidStr("key3"),
-					SubID:  subidStr("nonce3"),
-				},
+				DarcID:     darcidStr("key3"),
+				InstanceID: id("nonce3"),
 				Spawn: &Spawn{
 					ContractID: "kind3",
 				},
@@ -118,10 +106,8 @@ func createOneClientTx(dID darc.ID, kind string, value []byte, signer darc.Signe
 
 func createInstr(dID darc.ID, contractID string, value []byte, signer darc.Signer) (Instruction, error) {
 	instr := Instruction{
-		InstanceID: InstanceID{
-			DarcID: dID,
-			SubID:  genSubID(),
-		},
+		DarcID:     dID,
+		InstanceID: genID(),
 		Spawn: &Spawn{
 			ContractID: contractID,
 			Args:       Arguments{{Name: "data", Value: value}},

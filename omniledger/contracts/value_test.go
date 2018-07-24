@@ -32,13 +32,10 @@ func TestValue_Spawn(t *testing.T) {
 	myvalue := []byte("1234")
 	ctx := service.ClientTransaction{
 		Instructions: []service.Instruction{{
-			InstanceID: service.InstanceID{
-				DarcID: gDarc.GetBaseID(),
-				SubID:  service.SubID{},
-			},
-			Nonce:  service.Nonce{},
-			Index:  0,
-			Length: 1,
+			InstanceID: InstanceIDFromSlice(gDarc.GetBaseID()),
+			Nonce:      service.Nonce{},
+			Index:      0,
+			Length:     1,
 			Spawn: &service.Spawn{
 				ContractID: ContractValueID,
 				Args: []service.Argument{{

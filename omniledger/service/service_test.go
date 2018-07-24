@@ -442,18 +442,16 @@ func TestService_StateChange(t *testing.T) {
 	require.NotNil(t, cdb)
 
 	n := 5
-	inst := genSubID()
+	inst := genID()
 	nonce := GenNonce()
 	instrs := make([]Instruction, n)
 	for i := range instrs {
 		instrs[i] = Instruction{
-			InstanceID: InstanceID{
-				DarcID: s.darc.GetBaseID(),
-				SubID:  inst,
-			},
-			Nonce:  nonce,
-			Index:  i,
-			Length: n,
+			DarcID:     s.darc.GetBaseID(),
+			InstanceID: inst,
+			Nonce:      nonce,
+			Index:      i,
+			Length:     n,
 		}
 		if i == 0 {
 			instrs[i].Spawn = &Spawn{
@@ -531,13 +529,11 @@ func TestService_DarcSpawn(t *testing.T) {
 
 	ctx := ClientTransaction{
 		Instructions: []Instruction{{
-			InstanceID: InstanceID{
-				DarcID: s.darc.GetBaseID(),
-				SubID:  SubID{},
-			},
-			Nonce:  GenNonce(),
-			Index:  0,
-			Length: 1,
+			DarcID:     s.darc.GetBaseID(),
+			InstanceID: InstanceIDFromSlice(s.darc.GetBaseID()),
+			Nonce:      GenNonce(),
+			Index:      0,
+			Length:     1,
 			Spawn: &Spawn{
 				ContractID: ContractDarcID,
 				Args: []Argument{{
@@ -550,7 +546,7 @@ func TestService_DarcSpawn(t *testing.T) {
 	require.Nil(t, ctx.Instructions[0].SignBy(s.signer))
 
 	s.sendTx(t, ctx)
-	pr := s.waitProof(t, InstanceID{darc2.GetBaseID(), SubID{}})
+	pr := s.waitProof(t, InstanceIDFromSlice(darc2.GetBaseID()))
 	require.True(t, pr.InclusionProof.Match())
 }
 
@@ -572,13 +568,11 @@ func TestService_DarcDelegation(t *testing.T) {
 	require.True(t, darc2.Equal(darc2Copy))
 	ctx := ClientTransaction{
 		Instructions: []Instruction{{
-			InstanceID: InstanceID{
-				DarcID: s.darc.GetBaseID(),
-				SubID:  SubID{},
-			},
-			Nonce:  GenNonce(),
-			Index:  0,
-			Length: 1,
+			DarcID:     s.darc.GetBaseID(),
+			InstanceID: InstanceIDFromSlice(s.darc.GetBaseID()),
+			Nonce:      GenNonce(),
+			Index:      0,
+			Length:     1,
 			Spawn: &Spawn{
 				ContractID: ContractDarcID,
 				Args: []Argument{{
@@ -590,7 +584,7 @@ func TestService_DarcDelegation(t *testing.T) {
 	}
 	require.Nil(t, ctx.Instructions[0].SignBy(s.signer))
 	s.sendTx(t, ctx)
-	pr := s.waitProof(t, InstanceID{darc2.GetBaseID(), SubID{}})
+	pr := s.waitProof(t, InstanceIDFromSlice(darc2.GetBaseID()))
 	require.True(t, pr.InclusionProof.Match())
 
 	// Spawn third darc from the second one, but sign the request with
@@ -606,13 +600,11 @@ func TestService_DarcDelegation(t *testing.T) {
 	require.True(t, darc3.Equal(darc3Copy))
 	ctx = ClientTransaction{
 		Instructions: []Instruction{{
-			InstanceID: InstanceID{
-				DarcID: darc2.GetBaseID(),
-				SubID:  SubID{},
-			},
-			Nonce:  GenNonce(),
-			Index:  0,
-			Length: 1,
+			DarcID:     darc2.GetBaseID(),
+			InstanceID: InstanceIDFromSlice(darc2.GetBaseID()),
+			Nonce:      GenNonce(),
+			Index:      0,
+			Length:     1,
 			Spawn: &Spawn{
 				ContractID: ContractDarcID,
 				Args: []Argument{{
@@ -625,7 +617,7 @@ func TestService_DarcDelegation(t *testing.T) {
 
 	require.Nil(t, ctx.Instructions[0].SignBy(s.signer))
 	s.sendTx(t, ctx)
-	pr = s.waitProof(t, InstanceID{darc3.GetBaseID(), SubID{}})
+	pr = s.waitProof(t, InstanceIDFromSlice(darc3.GetBaseID()))
 	require.True(t, pr.InclusionProof.Match())
 }
 
@@ -750,15 +742,15 @@ func createConfigTx(t *testing.T, s *ser, isgood bool) (ClientTransaction, Chain
 	configBuf, err := protobuf.Encode(&config)
 	require.NoError(t, err)
 
+	cfgid := DeriveConfigID(s.darc.GetBaseID())
+
 	ctx := ClientTransaction{
 		Instructions: []Instruction{{
-			InstanceID: InstanceID{
-				DarcID: s.darc.GetBaseID(),
-				SubID:  oneSubID,
-			},
-			Nonce:  GenNonce(),
-			Index:  0,
-			Length: 1,
+			DarcID:     s.darc.GetBaseID(),
+			InstanceID: cfgid,
+			Nonce:      GenNonce(),
+			Index:      0,
+			Length:     1,
 			Invoke: &Invoke{
 				Command: "update_config",
 				Args: []Argument{{
@@ -785,14 +777,12 @@ func darcToTx(t *testing.T, d2 darc.Darc, signer darc.Signer) ClientTransaction 
 		},
 	}
 	instr := Instruction{
-		InstanceID: InstanceID{
-			DarcID: d2.GetBaseID(),
-			SubID:  SubID{},
-		},
-		Nonce:  GenNonce(),
-		Index:  0,
-		Length: 1,
-		Invoke: &invoke,
+		DarcID:     d2.GetBaseID(),
+		InstanceID: InstanceIDFromSlice(d2.GetBaseID()),
+		Nonce:      GenNonce(),
+		Index:      0,
+		Length:     1,
+		Invoke:     &invoke,
 	}
 	require.Nil(t, instr.SignBy(signer))
 	return ClientTransaction{
@@ -863,7 +853,7 @@ func (s *ser) testDarcEvolution(t *testing.T, d2 darc.Darc, fail bool) (pr *Proo
 	for i := 0; i < 10; i++ {
 		resp, err := s.service().GetProof(&GetProof{
 			Version: CurrentVersion,
-			Key:     InstanceID{d2.GetBaseID(), SubID{}}.Slice(),
+			Key:     d2.GetBaseID(),
 			ID:      s.sb.SkipChainID(),
 		})
 		require.Nil(t, err)
@@ -984,7 +974,7 @@ func registerDummy(servers []*onet.Server) {
 	}
 }
 
-func genSubID() (n SubID) {
-	random.Bytes(n[:], random.New())
-	return n
+func genID() (i InstanceID) {
+	random.Bytes(i[:], random.New())
+	return i
 }

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"time"
@@ -13,19 +14,13 @@ import (
 	"github.com/dedis/protobuf"
 )
 
-// oneSubID is the subid for storing the OmniLedger config.
-var oneSubID = SubID(func() [32]byte {
-	var one [32]byte
-	one[31] = 1
-	return one
-}())
+var zero32 = [32]byte{}
 
 // zeroDarc is a DarcID with all zeroes.
-var zeroDarc = darc.ID(make([]byte, 32))
+var zeroDarc = darc.ID(zero32[:])
 
-// GenesisReferenceID is 64 bytes of zeroes. Its value is a reference to the
-// genesis-darc.
-var GenesisReferenceID = InstanceID{zeroDarc, SubID{}}
+// The GenesisReferenceID is all zeroes. Its value is a reference to the genesis-darc.
+var GenesisReferenceID = InstanceID(zero32)
 
 // ContractConfigID denotes a config-contract
 var ContractConfigID = "config"
@@ -47,14 +42,12 @@ func LoadConfigFromColl(coll CollectionView) (*ChainConfig, error) {
 		return nil, errors.New("did not get " + ContractConfigID)
 	}
 	if len(val) != 32 {
-		return nil, errors.New("value has a invalid length")
+		return nil, errors.New("value has invalid length")
 	}
+
 	// Use the genesis-darc ID to create the config key and read the config.
-	configID := InstanceID{
-		DarcID: darc.ID(val),
-		SubID:  oneSubID,
-	}
-	val, contract, err = getValueContract(coll, configID.Slice())
+	cfgid := DeriveConfigID(darc.ID(val))
+	val, contract, err = getValueContract(coll, cfgid.Slice())
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +90,7 @@ func LoadDarcFromColl(coll CollectionView, key []byte) (*darc.Darc, error) {
 	if !ok {
 		return nil, errors.New("can not cast value to byte slice")
 	}
-	if string(contractBuf) != "darc" {
+	if string(contractBuf) != ContractDarcID {
 		return nil, errors.New("expected contract to be darc but got: " + string(contractBuf))
 	}
 	darcBuf, ok := vs[0].([]byte)
@@ -143,10 +136,7 @@ func (s *Service) invokeContractConfig(cdb CollectionView, inst Instruction, coi
 			return
 		}
 		sc = []StateChange{
-			NewStateChange(Update, InstanceID{
-				DarcID: inst.InstanceID.DarcID,
-				SubID:  oneSubID,
-			}, ContractConfigID, configBuf),
+			NewStateChange(Update, DeriveConfigID(inst.DarcID), ContractConfigID, configBuf),
 		}
 		return
 	} else if inst.Invoke.Command == "view_change" {
@@ -167,7 +157,7 @@ func (s *Service) invokeContractConfig(cdb CollectionView, inst Instruction, coi
 		if err = s.withinInterval(cdb.GetSkipchainID(), inst.Signatures[0].Signer.Ed25519.Point); err != nil {
 			return
 		}
-		sc, err = updateRosterScs(cdb, inst.InstanceID.DarcID, newRoster)
+		sc, err = updateRosterScs(cdb, inst.DarcID, newRoster)
 		return
 	}
 	err = errors.New("invalid invoke command: " + inst.Invoke.Command)
@@ -184,11 +174,9 @@ func updateRosterScs(cdb CollectionView, darcID darc.ID, newRoster onet.Roster) 
 	if err != nil {
 		return nil, err
 	}
+
 	return []StateChange{
-		NewStateChange(Update, InstanceID{
-			DarcID: darcID,
-			SubID:  oneSubID,
-		}, ContractConfigID, configBuf),
+		NewStateChange(Update, DeriveConfigID(darcID), ContractConfigID, configBuf),
 	}, nil
 }
 
@@ -247,16 +235,24 @@ func (s *Service) spawnContractConfig(cdb CollectionView, inst Instruction, coin
 		return
 	}
 
+	id := d.GetBaseID()
 	return []StateChange{
-		NewStateChange(Create, GenesisReferenceID, ContractConfigID, inst.InstanceID.DarcID),
-		NewStateChange(Create, inst.InstanceID, ContractDarcID, darcBuf),
-		NewStateChange(Create,
-			InstanceID{
-				DarcID: inst.InstanceID.DarcID,
-				SubID:  oneSubID,
-			}, ContractConfigID, configBuf),
+		NewStateChange(Create, GenesisReferenceID, ContractConfigID, id),
+		NewStateChange(Create, InstanceIDFromSlice(id), ContractDarcID, darcBuf),
+		NewStateChange(Create, DeriveConfigID(id), ContractConfigID, configBuf),
 	}, c, nil
 
+}
+
+// DeriveConfigID derives the InstanceID for the config key from the genesis
+// Darc's ID.
+func DeriveConfigID(id darc.ID) InstanceID {
+	h := sha256.New()
+	h.Write(id)
+	h.Write([]byte{0})
+	h.Write([]byte("config"))
+	sum := h.Sum(nil)
+	return InstanceIDFromSlice(sum)
 }
 
 // ContractDarc accepts the following instructions:
@@ -272,7 +268,7 @@ func (s *Service) ContractDarc(coll CollectionView, inst Instruction, coins []Co
 				return nil, nil, errors.New("given darc could not be decoded: " + err.Error())
 			}
 			return []StateChange{
-				NewStateChange(Create, InstanceID{d.GetBaseID(), SubID{}}, ContractDarcID, darcBuf),
+				NewStateChange(Create, InstanceIDFromSlice(d.GetBaseID()), ContractDarcID, darcBuf),
 			}, coins, nil
 		}
 		// TODO The code below will never get called because this
@@ -293,7 +289,7 @@ func (s *Service) ContractDarc(coll CollectionView, inst Instruction, coins []Co
 			if err != nil {
 				return nil, nil, err
 			}
-			oldD, err := LoadDarcFromColl(coll, InstanceID{newD.BaseID, SubID{}}.Slice())
+			oldD, err := LoadDarcFromColl(coll, newD.BaseID)
 			if err != nil {
 				return nil, nil, err
 			}

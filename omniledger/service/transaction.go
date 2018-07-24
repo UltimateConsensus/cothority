@@ -23,9 +23,6 @@ func init() {
 		StateChange{})
 }
 
-// Nonce is used to prevent replay attacks in instructions.
-type Nonce [32]byte
-
 // NewNonce returns a nonce given a slice of bytes.
 func NewNonce(buf []byte) Nonce {
 	if len(buf) != 32 {
@@ -36,41 +33,17 @@ func NewNonce(buf []byte) Nonce {
 	return n
 }
 
-// NewInstanceID returns a new InstanceID given a slice of bytes. If the length
-// of the slice is not 64 bytes, it will return an all zero InstanceID.
-func NewInstanceID(buf []byte) InstanceID {
-	if len(buf) != 64 {
-		return InstanceID{zeroDarc, SubID{}}
-	}
-	return InstanceID{buf[0:32], NewSubID(buf[32:64])}
+// InstanceIDFromSlice converts the first 32 bytes of in into
+// an InstanceID.
+func InstanceIDFromSlice(in []byte) InstanceID {
+	var i InstanceID
+	copy(i[:], in)
+	return i
 }
 
-// Slice returns concatenated DarcID and InstanceID.
-func (iID InstanceID) Slice() []byte {
-	var out []byte
-	out = append(out, iID.DarcID[:]...)
-	return append(out, iID.SubID[:]...)
-}
-
-// Equal returns if both InstanceIDs point to the same instance.
-func (iID InstanceID) Equal(other InstanceID) bool {
-	return bytes.Compare(iID.DarcID, other.DarcID) == 0 &&
-		bytes.Compare(iID.SubID[:], other.SubID[:]) == 0
-}
-
-// SubID is a 32-byte id.
-type SubID [32]byte
-
-// NewSubID returns a SubID given a slice of bytes. If buf is of
-// length 32 bytes it will copy it to a new SubID, else it will return
-// a SubID filled with zeroes.
-func NewSubID(buf []byte) SubID {
-	if len(buf) != 32 {
-		return SubID{}
-	}
-	n := SubID{}
-	copy(n[:], buf)
-	return n
+// Slice returns the InstanceID as a []byte.
+func (i InstanceID) Slice() []byte {
+	return i[:]
 }
 
 // Arguments is a searchable list of arguments.
@@ -92,8 +65,8 @@ func (args Arguments) Search(name string) []byte {
 // Hash computes the digest of the hash function
 func (instr Instruction) Hash() []byte {
 	h := sha256.New()
-	h.Write(instr.InstanceID.DarcID)
-	h.Write(instr.InstanceID.SubID[:])
+	h.Write(instr.DarcID)
+	h.Write(instr.InstanceID[:])
 	h.Write(instr.Nonce[:])
 	b := make([]byte, 4)
 	binary.LittleEndian.PutUint32(b, uint32(instr.Index))
@@ -123,21 +96,15 @@ func (instr Instruction) Hash() []byte {
 // InstanceID, the given string, and the hash of the Instruction.
 func (instr Instruction) DeriveID(what string) InstanceID {
 	h := sha256.New()
-	h.Write([]byte(what))
 	h.Write(instr.Hash())
+	h.Write([]byte{0})
 	for _, s := range instr.Signatures {
-		// h.Write(s.Signer)
 		h.Write(s.Signature)
+		h.Write([]byte{0})
 	}
-	sum := h.Sum(nil)
-
-	var sub SubID
-	copy(sub[:], sum)
-
-	return InstanceID{
-		DarcID: instr.InstanceID.DarcID,
-		SubID:  sub,
-	}
+	h.Write([]byte(what))
+	h.Write([]byte{0})
+	return InstanceIDFromSlice(h.Sum(nil))
 }
 
 // GetContractState searches for the contract kind of this instruction and the
@@ -198,7 +165,8 @@ func (instr Instruction) Action() string {
 func (instr Instruction) String() string {
 	var out string
 	out += fmt.Sprintf("instr: %x\n", instr.Hash())
-	out += fmt.Sprintf("\tdarc ID: %x\n", instr.InstanceID.DarcID)
+	out += fmt.Sprintf("\tdarc ID: %x\n", instr.DarcID)
+	out += fmt.Sprintf("\tinstID: %x\n", instr.InstanceID)
 	out += fmt.Sprintf("\tnonce: %x\n", instr.Nonce)
 	out += fmt.Sprintf("\tindex: %d\n\tlength: %d\n", instr.Index, instr.Length)
 	out += fmt.Sprintf("\taction: %s\n", instr.Action())
@@ -244,7 +212,7 @@ func (instr *Instruction) SignBy(signers ...darc.Signer) error {
 
 // ToDarcRequest converts the Instruction content into a darc.Request.
 func (instr Instruction) ToDarcRequest() (*darc.Request, error) {
-	baseID := instr.InstanceID.DarcID
+	baseID := instr.DarcID
 	action := instr.Action()
 	ids := make([]darc.Identity, len(instr.Signatures))
 	sigs := make([][]byte, len(instr.Signatures))
