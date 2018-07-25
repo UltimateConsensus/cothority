@@ -58,16 +58,17 @@ func (s *Service) Search(req *SearchRequest) (*SearchResponse, error) {
 	}
 
 	v := s.omni.GetCollectionView(req.ID)
-	el := &eventLog{ID: req.EventLogID.Slice(), v: v}
+	el := &eventLog{Instance: req.Instance, v: v}
 
 	id, b, err := el.getLatestBucket()
-	if err == errIndexMissing {
-		// There are no events yet on this chain, so return no results.
-		return &SearchResponse{}, nil
-	}
 	if err != nil {
 		return nil, err
 	}
+	if b == nil {
+		// There are no events yet on this chain, so return no results.
+		return &SearchResponse{}, nil
+	}
+
 	// bEnd is normally updated from the last bucket's start. For the latest
 	// bucket, bEnd is now.
 	bEnd := time.Now().UnixNano()
@@ -101,7 +102,7 @@ func (s *Service) Search(req *SearchRequest) (*SearchResponse, error) {
 		if err != nil {
 			// This indicates that the event log data structure is wrong, so
 			// we cannot claim to correctly search it. Give up instead.
-			log.Errorf("expected event log bucket id %x not found: %v", b.Prev, err)
+			log.Errorf("expected event log bucket id %v not found: %v", string(id), err)
 			return nil, err
 		}
 	}
@@ -204,7 +205,7 @@ func (s *Service) invoke(v omniledger.CollectionView, tx omniledger.Instruction,
 	// For now: buckets are allowed to grow as big as needed (but the previous
 	// rule prevents buckets from getting too big by timing them out).
 
-	el := &eventLog{ID: tx.InstanceID.Slice(), v: v}
+	el := &eventLog{Instance: tx.InstanceID, v: v}
 	bID, b, err := el.getLatestBucket()
 	if err != nil {
 		return nil, nil, err
@@ -292,16 +293,9 @@ func (s *Service) spawn(v omniledger.CollectionView, instr omniledger.Instructio
 		return nil, nil, errors.New("invalid contract ID: " + cid)
 	}
 
-	var subID omniledger.SubID
-	copy(subID[:], instr.Hash())
-	objID := omniledger.InstanceID{
-		DarcID: instr.InstanceID.DarcID,
-		SubID:  subID,
-	}
 	// We just need to store the key, because we make a Create state change
 	// here and all the following changes are Update.
-	scs := []omniledger.StateChange{omniledger.NewStateChange(omniledger.Create, objID, cid, make([]byte, 64))}
-	return scs, []omniledger.Coin{}, nil
+	return []omniledger.StateChange{omniledger.NewStateChange(omniledger.Create, omniledger.InstanceIDFromSlice(instr.Hash()), cid, make([]byte, 32))}, nil, nil
 }
 
 // contractFunction is the function that runs to process a transaction of

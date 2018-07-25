@@ -44,8 +44,8 @@ func NewEvent(topic, content string) Event {
 // event", and To == 0 means "until now". From and To should be set using the
 // UnixNano() method in package time.
 type SearchRequest struct {
-	EventLogID omniledger.InstanceID
-	ID         skipchain.SkipBlockID
+	Instance omniledger.InstanceID
+	ID       skipchain.SkipBlockID
 	// Return events where Event.Topic == Topic, if Topic != "".
 	Topic string
 	// Return events where When is > From.

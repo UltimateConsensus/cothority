@@ -236,12 +236,11 @@ func add(c *cli.Context) error {
 		},
 	}
 	instr := omniledger.Instruction{
-		InstanceID: omniledger.InstanceID{
-			DarcID: d2.GetBaseID(),
-		},
-		Index:  0,
-		Length: 1,
-		Invoke: &invoke,
+		DarcID:     d2.GetBaseID(),
+		InstanceID: omniledger.InstanceIDFromSlice(d2.GetBaseID()),
+		Index:      0,
+		Length:     1,
+		Invoke:     &invoke,
 		Signatures: []darc.Signature{
 			darc.Signature{Signer: private.Owner.Identity()},
 		},

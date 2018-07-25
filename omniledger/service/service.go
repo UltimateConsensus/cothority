@@ -1034,8 +1034,15 @@ func (s *Service) tryLoad() error {
 		if err != nil {
 			return err
 		}
-		s.pollChanWG.Add(1)
-		s.pollChan[string(gen)] = s.startPolling(gen, interval)
+
+		leader, err := s.getLeader(gen)
+		if err != nil {
+			panic("getLeader should not return an error if roster is initialised.")
+		}
+		if leader.Equal(s.ServerIdentity()) {
+			s.pollChanWG.Add(1)
+			s.pollChan[string(gen)] = s.startPolling(gen, interval)
+		}
 		sb, err := s.db().GetLatestByID(gen)
 		if err != nil {
 			return err
