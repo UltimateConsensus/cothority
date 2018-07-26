@@ -215,7 +215,7 @@ func (s *Service) AddTransaction(req *AddTxRequest) (*AddTxResponse, error) {
 				return nil, errors.New("transaction is in block, but got refused")
 			}
 		case <-time.After(time.Duration(req.InclusionWait) * interval):
-			return nil, errors.New("didn't find transaction in blocks")
+			return nil, fmt.Errorf("didn't find transaction in %v blocks", req.InclusionWait)
 		}
 	}
 	return &AddTxResponse{

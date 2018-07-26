@@ -19,7 +19,7 @@ var zero32 = [32]byte{}
 // zeroDarc is a DarcID with all zeroes.
 var zeroDarc = darc.ID(zero32[:])
 
-// The GenesisReferenceID is all zeroes. Its value is a reference to the genesis-darc.
+// GenesisReferenceID is all zeroes. Its value is a reference to the genesis-darc.
 var GenesisReferenceID = InstanceID(zero32)
 
 // ContractConfigID denotes a config-contract

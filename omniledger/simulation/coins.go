@@ -109,10 +109,7 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	tx := service.ClientTransaction{
 		Instructions: []service.Instruction{
 			{
-				InstanceID: service.InstanceID{
-					DarcID: gm.GenesisDarc.GetID(),
-					SubID:  service.SubID{},
-				},
+				DarcID: gm.GenesisDarc.GetID(),
 				Nonce:  service.Nonce{},
 				Index:  0,
 				Length: 3,
@@ -121,10 +118,7 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 				},
 			},
 			{
-				InstanceID: service.InstanceID{
-					DarcID: gm.GenesisDarc.GetID(),
-					SubID:  service.SubID{},
-				},
+				DarcID: gm.GenesisDarc.GetID(),
 				Nonce:  service.Nonce{},
 				Index:  1,
 				Length: 3,
@@ -133,6 +127,7 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 				},
 			},
 			{
+				DarcID: gm.GenesisDarc.GetID(),
 				Nonce:  service.Nonce{},
 				Index:  2,
 				Length: 3,
@@ -149,14 +144,8 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	// The first instruction will create an account with the SubID equal to the
 	// hash of the first instruction. So we can mint directly on the hash of this
 	// instruction. Theoretically...
-	coinAddr1 := service.InstanceID{
-		DarcID: gm.GenesisDarc.GetBaseID(),
-		SubID:  service.NewSubID(tx.Instructions[0].Hash()),
-	}
-	coinAddr2 := service.InstanceID{
-		DarcID: gm.GenesisDarc.GetBaseID(),
-		SubID:  service.NewSubID(tx.Instructions[1].Hash()),
-	}
+	coinAddr1 := service.InstanceIDFromSlice(tx.Instructions[0].Hash())
+	coinAddr2 := service.InstanceIDFromSlice(tx.Instructions[1].Hash())
 	tx.Instructions[2].InstanceID = coinAddr1
 
 	// Now sign all the instructions
@@ -169,7 +158,7 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 	// And send the instructions to omniledger
 	_, err = c.AddTransactionAndWait(tx, 2)
 	if err != nil {
-		return errors.New("couldn't add transaction: " + err.Error())
+		return errors.New("couldn't initialize accounts: " + err.Error())
 	}
 
 	for round := 0; round < s.Rounds; round++ {
@@ -186,6 +175,7 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 				var buf bytes.Buffer
 				binary.Write(&buf, binary.LittleEndian, i+1)
 				tx.Instructions = append(tx.Instructions, service.Instruction{
+					DarcID:     gm.GenesisDarc.GetID(),
 					InstanceID: coinAddr1,
 					Nonce:      service.NewNonce(buf.Bytes()),
 					Index:      i,

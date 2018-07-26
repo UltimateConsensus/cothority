@@ -129,12 +129,12 @@ func (c *Client) GetGenDarc() (*darc.Darc, error) {
 	if string(contractBuf) != ContractConfigID {
 		return nil, errors.New("expected contract to be config but got: " + string(contractBuf))
 	}
-	darcId := vs[0]
-	if len(darcId) != 32 {
+	darcID := vs[0]
+	if len(darcID) != 32 {
 		return nil, errors.New("genesis darc ID is wrong length")
 	}
 
-	p, err = c.GetProof(darcId)
+	p, err = c.GetProof(darcID)
 	if err != nil {
 		return nil, err
 	}

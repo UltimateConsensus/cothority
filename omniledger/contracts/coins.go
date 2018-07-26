@@ -62,10 +62,7 @@ func ContractCoin(cdb omniledger.CollectionView, inst omniledger.Instruction, c 
 	case omniledger.SpawnType:
 		// Spawn creates a new coin account as a separate instance. The subID is
 		// taken from the hash of the instruction.
-		ca := omniledger.InstanceID{
-			DarcID: inst.InstanceID.DarcID,
-			SubID:  omniledger.NewSubID(inst.Hash()),
-		}
+		ca := omniledger.InstanceIDFromSlice(inst.Hash())
 		log.Lvlf3("Spawing coin to %x", ca.Slice())
 		sc = []omniledger.StateChange{
 			omniledger.NewStateChange(omniledger.Create, ca, ContractCoinID, make([]byte, 8)),
@@ -126,7 +123,7 @@ func ContractCoin(cdb omniledger.CollectionView, inst omniledger.Instruction, c 
 			binary.Write(&w, binary.LittleEndian, targetCoin)
 
 			log.Lvlf3("transferring %d to %x", coinsArg, target)
-			sc = append(sc, omniledger.NewStateChange(omniledger.Update, omniledger.NewInstanceID(target),
+			sc = append(sc, omniledger.NewStateChange(omniledger.Update, omniledger.InstanceIDFromSlice(target),
 				ContractCoinID, w.Bytes()))
 		case "fetch":
 			// fetch removes coins from the account and passes it on to the next
@@ -144,7 +141,7 @@ func ContractCoin(cdb omniledger.CollectionView, inst omniledger.Instruction, c 
 			// store moves all coins from this instruction into the account.
 			cOut = []omniledger.Coin{}
 			for _, co := range c {
-				if co.Name.Equal(CoinName) {
+				if bytes.Equal(co.Name.Slice(), CoinName.Slice()) {
 					coinsCurrent, err = coinsCurrent.add(co.Value)
 					if err != nil {
 						return
@@ -184,17 +181,12 @@ func ContractCoin(cdb omniledger.CollectionView, inst omniledger.Instruction, c 
 	return
 }
 
-// iid uses darc=sha256(in) and subid=sha256(in) in order to manufacture an
-// InstanceID from in.
+// iid uses sha256(in) in order to manufacture an InstanceID from in
+// thereby handling the case where len(in) != 32.
 //
-// TODO: Find a more appropriate way to make well-known instance ID's, depends
-// on getting rid of subids.
+// TODO: Find a nicer way to make well-known instance IDs.
 func iid(in string) omniledger.InstanceID {
 	h := sha256.New()
 	h.Write([]byte(in))
-	sum := h.Sum(nil)
-
-	i := omniledger.InstanceID{DarcID: sum}
-	copy(i.SubID[:], sum)
-	return i
+	return omniledger.InstanceIDFromSlice(h.Sum(nil))
 }

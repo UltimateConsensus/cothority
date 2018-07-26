@@ -23,7 +23,6 @@ func TestCoin_Spawn(t *testing.T) {
 	// Testing spawning of a new coin and checking it has zero coins in it.
 	ct := cvTest{}
 	inst := omniledger.Instruction{
-		InstanceID: omniledger.NewInstanceID(nil),
 		Spawn: &omniledger.Spawn{
 			ContractID: ContractCoinID,
 		},
@@ -33,7 +32,7 @@ func TestCoin_Spawn(t *testing.T) {
 	sc, co, err := ContractCoin(ct, inst, c)
 	require.Nil(t, err)
 	require.Equal(t, 1, len(sc))
-	ca := omniledger.InstanceID{DarcID: make([]byte, 32), SubID: omniledger.NewSubID(inst.Hash())}
+	ca := omniledger.InstanceIDFromSlice(inst.Hash())
 	require.Equal(t, omniledger.NewStateChange(omniledger.Create, ca,
 		ContractCoinID, coinZero), sc[0])
 	require.Equal(t, 0, len(co))
@@ -42,7 +41,7 @@ func TestCoin_Spawn(t *testing.T) {
 func TestCoin_InvokeMint(t *testing.T) {
 	// Test that a coin can be minted
 	ct := newCT()
-	coAddr := omniledger.NewInstanceID(nil)
+	coAddr := omniledger.InstanceID{}
 	ct.Store(coAddr, coinZero, ContractCoinID)
 
 	inst := omniledger.Instruction{
@@ -63,7 +62,7 @@ func TestCoin_InvokeMint(t *testing.T) {
 func TestCoin_InvokeOverflow(t *testing.T) {
 	uint64max := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 	ct := newCT()
-	coAddr := omniledger.NewInstanceID(nil)
+	coAddr := omniledger.InstanceID{}
 	ct.Store(coAddr, uint64max, ContractCoinID)
 
 	inst := omniledger.Instruction{
@@ -82,7 +81,7 @@ func TestCoin_InvokeOverflow(t *testing.T) {
 
 func TestCoin_InvokeStoreFetch(t *testing.T) {
 	ct := newCT()
-	coAddr := omniledger.NewInstanceID(nil)
+	coAddr := omniledger.InstanceID{}
 	ct.Store(coAddr, coinZero, ContractCoinID)
 
 	inst := omniledger.Instruction{
@@ -132,9 +131,11 @@ func TestCoin_InvokeStoreFetch(t *testing.T) {
 func TestCoin_InvokeTransfer(t *testing.T) {
 	// Test that a coin can be transferred
 	ct := newCT()
-	coAddr1 := omniledger.InstanceID{DarcID: make([]byte, 32), SubID: omniledger.SubID{}}
-	coAddr2 := omniledger.InstanceID{DarcID: make([]byte, 32), SubID: omniledger.SubID{}}
-	coAddr2.DarcID[31] = byte(1)
+	coAddr1 := omniledger.InstanceID{}
+	one := make([]byte, 32)
+	one[31] = 1
+	coAddr2 := omniledger.InstanceIDFromSlice(one)
+
 	ct.Store(coAddr1, coinOne, ContractCoinID)
 	ct.Store(coAddr2, coinZero, ContractCoinID)
 
