@@ -14,13 +14,8 @@ import (
 	"github.com/dedis/protobuf"
 )
 
-var zero32 = [32]byte{}
-
-// zeroDarc is a DarcID with all zeroes.
-var zeroDarc = darc.ID(zero32[:])
-
 // GenesisReferenceID is all zeroes. Its value is a reference to the genesis-darc.
-var GenesisReferenceID = InstanceID(zero32)
+var GenesisReferenceID = InstanceID{}
 
 // ContractConfigID denotes a config-contract
 var ContractConfigID = "config"
