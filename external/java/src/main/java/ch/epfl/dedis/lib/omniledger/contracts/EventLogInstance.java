@@ -49,6 +49,7 @@ import java.util.List;
  */
 public class EventLogInstance {
     private Instance instance;
+    private DarcId darcId;
     private OmniledgerRPC ol;
 
     private final static Logger logger = LoggerFactory.getLogger(EventLogInstance.class);
@@ -63,6 +64,7 @@ public class EventLogInstance {
      */
     public EventLogInstance(OmniledgerRPC ol, List<Signer> signers, DarcId darcId) throws CothorityException {
         this.ol = ol;
+        this.darcId = darcId;
         InstanceId id = this.initEventlogInstance(signers, darcId);
 
         // wait for omniledger to commit the transaction in block
@@ -96,7 +98,7 @@ public class EventLogInstance {
      * @throws CothorityException
      */
     public List<InstanceId> log(List<Event> events, List<Signer> signers) throws CothorityException {
-        Pair<ClientTransaction, List<InstanceId>> txAndKeys = makeTx(events, this.instance.getId(), signers);
+        Pair<ClientTransaction, List<InstanceId>> txAndKeys = makeTx(events, signers);
         ol.sendTransaction(txAndKeys._1);
         return txAndKeys._2;
     }
@@ -153,7 +155,7 @@ public class EventLogInstance {
         // Note: this method is a bit different from the others, we directly use the raw sendMessage instead of via
         // OmniLedgerRPC.
         EventLogProto.SearchRequest.Builder b = EventLogProto.SearchRequest.newBuilder();
-        b.setEventlogid(this.instance.getId().toProto());
+        b.setInstance(ByteString.copyFrom(this.instance.getId().getId()));
         b.setId(this.ol.getGenesis().getId().toProto());
         b.setTopic(topic);
         b.setFrom(from);
@@ -182,15 +184,13 @@ public class EventLogInstance {
             throw new CothorityException("already have an instance");
         }
         Spawn spawn = new Spawn("eventlog", new ArrayList<>());
-        InstanceId darcInstId = new InstanceId(darcId, new SubId(new byte[32]));
-        Instruction instr = new Instruction(darcInstId, genNonce(), 0, 1, spawn);
+        Instruction instr = new Instruction(darcId, Instruction.genNonce(), 0, 1, spawn);
         instr.signBy(signers);
 
         ClientTransaction tx = new ClientTransaction(Arrays.asList(instr));
         ol.sendTransaction(tx);
 
-        SubId subId = new SubId(instr.hash());
-        return new InstanceId(darcId, subId);
+        return new InstanceId(instr.hash());
     }
 
 
@@ -215,8 +215,7 @@ public class EventLogInstance {
         }
     }
 
-    private static Pair<ClientTransaction, List<InstanceId>> makeTx(List<Event> events, InstanceId instId, List<Signer> signers) throws CothorityCryptoException {
-        byte[] instrNonce = genNonce();
+    private Pair<ClientTransaction, List<InstanceId>> makeTx(List<Event> events, List<Signer> signers) throws CothorityCryptoException {
         List<Instruction> instrs = new ArrayList<>();
         List<InstanceId> keys = new ArrayList<>();
         int idx = 0;
@@ -224,7 +223,7 @@ public class EventLogInstance {
             List<Argument> args = new ArrayList<>();
             args.add(new Argument("event", e.toProto().toByteArray()));
             Invoke invoke = new Invoke("eventlog", args);
-            Instruction instr = new Instruction(instId, instrNonce, idx, events.size(), invoke);
+            Instruction instr = new Instruction(darcId, instance.getId(), Instruction.genNonce(), idx, events.size(), invoke);
             instr.signBy(signers);
             instrs.add(instr);
             keys.add(instr.deriveId("event"));
@@ -232,12 +231,5 @@ public class EventLogInstance {
         }
         ClientTransaction tx = new ClientTransaction(instrs);
         return new Pair(tx, keys);
-    }
-
-    private static byte[] genNonce()  {
-        SecureRandom sr = new SecureRandom();
-        byte[] nonce  = new byte[32];
-        sr.nextBytes(nonce);
-        return nonce;
     }
 }

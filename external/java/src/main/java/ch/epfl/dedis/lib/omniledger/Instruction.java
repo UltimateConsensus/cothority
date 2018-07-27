@@ -9,6 +9,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,6 +17,7 @@ import java.util.List;
  * An instruction is sent and executed by OmniLedger.
  */
 public class Instruction {
+    private DarcId darcId;
     private InstanceId instId;
     private byte[] nonce;
     private int index;
@@ -27,14 +29,15 @@ public class Instruction {
 
     /**
      * Use this constructor if it is a spawn instruction, i.e. you want to create a new object.
-     * @param instId The ID of the object, which must be unique.
+     * @param darcId The darc ID of the darc with permission "spawn:$contract"
      * @param nonce The nonce of the object.
      * @param index The index of the instruction in the atomic set.
      * @param length The length of the atomic set.
      * @param spawn The spawn object, which contains the value and the argument.
      */
-    public Instruction(InstanceId instId, byte[] nonce, int index, int length, Spawn spawn) {
-        this.instId = instId;
+    public Instruction(DarcId darcId, byte[] nonce, int index, int length, Spawn spawn) {
+        this.darcId = darcId;
+        this.instId = InstanceId.zero();
         this.nonce = nonce;
         this.index = index;
         this.length = length;
@@ -43,13 +46,15 @@ public class Instruction {
 
     /**
      * Use this constructor if it is an invoke instruction, i.e. you want to mutate an object.
+     * @param darcId The darc ID of the darc with permission "invoke:$contract"
      * @param instId The ID of the object, which must be unique.
      * @param nonce The nonce of the object.
      * @param index The index of the instruction in the atomic set.
      * @param length The length of the atomic set.
      * @param invoke The invoke object.
      */
-    public Instruction(InstanceId instId, byte[] nonce, int index, int length, Invoke invoke) {
+    public Instruction(DarcId darcId, InstanceId instId, byte[] nonce, int index, int length, Invoke invoke) {
+        this.darcId = darcId;
         this.instId = instId;
         this.nonce = nonce;
         this.index = index;
@@ -65,7 +70,8 @@ public class Instruction {
      * @param length The length of the atomic set.
      * @param delete The delete object.
      */
-    public Instruction(InstanceId instId, byte[] nonce, int index, int length, Delete delete) {
+    public Instruction(DarcId darcId, InstanceId instId, byte[] nonce, int index, int length, Delete delete) {
+        this.darcId = darcId;
         this.instId = instId;
         this.nonce = nonce;
         this.index = index;
@@ -74,10 +80,17 @@ public class Instruction {
     }
 
     /**
-     * Getter for the object ID.
+     * Getter for the instance ID.
      */
     public InstanceId getInstId() {
         return instId;
+    }
+
+    /**
+     * Getter for the darc ID.
+     */
+    public DarcId getDarcId() {
+        return darcId;
     }
 
     /**
@@ -94,8 +107,8 @@ public class Instruction {
     public byte[] hash() {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            digest.update(this.instId.getDarcId().getId());
-            digest.update(this.instId.getSubId().getId());
+            digest.update(this.darcId.getId());
+            digest.update(this.instId.getId());
             digest.update(this.nonce);
             digest.update(intToArr4(this.index));
             digest.update(intToArr4(this.length));
@@ -117,8 +130,6 @@ public class Instruction {
             return digest.digest();
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
-        } catch (CothorityCryptoException e){
-            throw new RuntimeException(e);
         }
     }
 
@@ -128,7 +139,8 @@ public class Instruction {
      */
     public OmniLedgerProto.Instruction toProto() {
         OmniLedgerProto.Instruction.Builder b = OmniLedgerProto.Instruction.newBuilder();
-        b.setInstanceid(this.instId.toProto());
+        b.setDarcid(this.darcId.toProto());
+        b.setInstanceid(ByteString.copyFrom(this.instId.getId()));
         b.setNonce(ByteString.copyFrom(this.nonce));
         b.setIndex(this.index);
         b.setLength(this.length);
@@ -173,11 +185,7 @@ public class Instruction {
             ids.add(sig.signer);
             sigs.add(sig.signature);
         }
-        try {
-            return new Request(this.instId.getDarcId(), this.action(), this.hash(), ids, sigs);
-        } catch (CothorityCryptoException e){
-            throw new RuntimeException(e);
-        }
+        return new Request(this.darcId, this.action(), this.hash(), ids, sigs);
     }
 
     /**
@@ -217,7 +225,7 @@ public class Instruction {
             for (Signature sig : this.signatures) {
                 digest.update(sig.signature);
             }
-            return new InstanceId(this.instId.getDarcId(), new SubId(digest.digest()));
+            return new InstanceId(digest.digest());
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
@@ -228,5 +236,12 @@ public class Instruction {
         b.order(ByteOrder.LITTLE_ENDIAN);
         b.putInt(x);
         return b.array();
+    }
+
+    public static byte[] genNonce()  {
+        SecureRandom sr = new SecureRandom();
+        byte[] nonce  = new byte[32];
+        sr.nextBytes(nonce);
+        return nonce;
     }
 }

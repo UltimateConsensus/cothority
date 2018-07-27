@@ -77,9 +77,11 @@ class EventLogInstanceTest {
             Thread.sleep(2 * ol.getConfig().getBlockInterval().toMillis());
             for (InstanceId key : keys) {
                 try {
+                    logger.info("ok");
                     Event event2 = el.get(key);
                     assertEquals(event, event2);
                 } catch (CothorityCryptoException e){
+                    logger.info("bad");
                     allOK = false;
                     break;
                 }
