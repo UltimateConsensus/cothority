@@ -18,6 +18,12 @@ import (
 	"github.com/dedis/protobuf"
 )
 
+// An InstanceID is a unique identifier for one instance of a contract.
+type InstanceID [32]byte
+
+// Nonce is used to prevent replay attacks in instructions.
+type Nonce [32]byte
+
 func init() {
 	network.RegisterMessages(Instruction{}, ClientTransaction{},
 		StateChange{})

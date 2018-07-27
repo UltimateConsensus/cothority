@@ -163,9 +163,6 @@ type Instruction struct {
 	Signatures []darc.Signature
 }
 
-// An InstanceID is a unique identifier for one instance of a contract.
-type InstanceID [32]byte
-
 // Spawn is called upon an existing object that will spawn a new object.
 type Spawn struct {
 	// ContractID represents the kind of contract that needs to be spawn.
@@ -221,6 +218,3 @@ type Coin struct {
 	// Value is the total number of coins of that type.
 	Value uint64
 }
-
-// Nonce is used to prevent replay attacks in instructions.
-type Nonce [32]byte

@@ -30,8 +30,6 @@ func NewEvent(topic, content string) Event {
 //
 // package eventlog;
 //
-// import "omniledger.proto";
-//
 // option java_package = "ch.epfl.dedis.proto";
 // option java_outer_classname = "EventLogProto";
 
