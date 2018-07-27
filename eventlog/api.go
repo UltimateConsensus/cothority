@@ -72,7 +72,7 @@ func (c *Client) Create() error {
 		return err
 	}
 
-	in := omniledger.InstanceIDFromSlice(instr.Hash())
+	in := instr.DeriveID("eventlog")
 	found := false
 	for ct := 0; ct < 10; ct++ {
 		resp, err := c.OmniLedger.GetProof(in.Slice())

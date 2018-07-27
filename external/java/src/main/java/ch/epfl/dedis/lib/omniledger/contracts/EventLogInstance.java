@@ -190,7 +190,7 @@ public class EventLogInstance {
         ClientTransaction tx = new ClientTransaction(Arrays.asList(instr));
         ol.sendTransaction(tx);
 
-        return new InstanceId(instr.hash());
+        return instr.deriveId("eventlog");
     }
 
 

@@ -141,12 +141,15 @@ func (s *SimulationService) Run(config *onet.SimulationConfig) error {
 		},
 	}
 
-	// The first instruction will create an account with the SubID equal to the
+	// The first instruction will create an account with the InstanceID equal to the
 	// hash of the first instruction. So we can mint directly on the hash of this
 	// instruction. Theoretically...
 	coinAddr1 := service.InstanceIDFromSlice(tx.Instructions[0].Hash())
-	coinAddr2 := service.InstanceIDFromSlice(tx.Instructions[1].Hash())
 	tx.Instructions[2].InstanceID = coinAddr1
+
+	// We'll also want to remember this addr so that we can monitor
+	// it for coins arriving.
+	coinAddr2 := service.InstanceIDFromSlice(tx.Instructions[1].Hash())
 
 	// Now sign all the instructions
 	for i := range tx.Instructions {

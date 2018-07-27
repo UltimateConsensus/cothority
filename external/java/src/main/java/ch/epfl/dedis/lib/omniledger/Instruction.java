@@ -218,13 +218,17 @@ public class Instruction {
      * @throws CothorityCryptoException
      */
     public InstanceId deriveId(String what) throws CothorityCryptoException {
+        final byte zero = 0;
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            digest.update(what.getBytes());
             digest.update(this.hash());
+            digest.update(zero);
             for (Signature sig : this.signatures) {
                 digest.update(sig.signature);
+                digest.update(zero);
             }
+            digest.update(what.getBytes());
+            digest.update(zero);
             return new InstanceId(digest.digest());
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);

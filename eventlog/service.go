@@ -296,7 +296,7 @@ func (s *Service) spawn(v omniledger.CollectionView, inst omniledger.Instruction
 	// Store zeros as the pointer to the first bucket because there are not yet
 	// any events in this event log.
 	return []omniledger.StateChange{
-		omniledger.NewStateChange(omniledger.Create, omniledger.InstanceIDFromSlice(inst.Hash()),
+		omniledger.NewStateChange(omniledger.Create, inst.DeriveID("eventlog"),
 			cid, make([]byte, 32), inst.DarcID),
 	}, nil, nil
 }

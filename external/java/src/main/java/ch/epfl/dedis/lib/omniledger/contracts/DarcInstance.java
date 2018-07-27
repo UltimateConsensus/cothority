@@ -178,7 +178,7 @@ public class DarcInstance {
         Instruction inst = spawnContractInstruction(contractID, s, args, 0, 1);
         ClientTransaction ct = new ClientTransaction(Arrays.asList(inst));
         ol.sendTransactionAndWait(ct, wait);
-        InstanceId iid = inst.deriveId(contractID);
+        InstanceId iid = inst.deriveId("value");
         if (contractID.equals("darc")) {
             // Special case for a darc, then the resulting instanceId is based
             // on the darc itself.
@@ -189,6 +189,7 @@ public class DarcInstance {
                 throw new CothorityCommunicationException("this is not a correct darc-spawn");
             }
         }
+        logger.info("waiting on iid {}", iid);
         return ol.getProof(iid);
     }
 
