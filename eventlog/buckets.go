@@ -26,7 +26,6 @@ type eventLog struct {
 }
 
 func (e eventLog) getLatestBucket() ([]byte, *bucket, error) {
-	println("glb")
 	bucketID, err := e.getIndexValue()
 	if err != nil {
 		return nil, nil, err
@@ -37,10 +36,8 @@ func (e eventLog) getLatestBucket() ([]byte, *bucket, error) {
 	// The eventLog index has been initialised, but not used yet, so we
 	// return an empty bucketID and an empty bucket.
 	if bytes.Equal(bucketID, make([]byte, 32)) {
-		println("glb zeros")
 		return nil, nil, nil
 	}
-	println("glb bucket by id")
 	b, err := e.getBucketByID(bucketID)
 	if err != nil {
 		return nil, nil, err

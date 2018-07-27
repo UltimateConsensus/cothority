@@ -208,6 +208,8 @@ type StateChange struct {
 	ContractID []byte
 	// Value is the data needed by the contract
 	Value []byte
+	// DarcID is the Darc controlling access to this key.
+	DarcID darc.ID
 }
 
 // Coin is a generic structure holding any type of coin. Coins are defined

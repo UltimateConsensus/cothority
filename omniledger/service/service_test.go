@@ -944,7 +944,7 @@ func dummyContractFunc(cdb CollectionView, inst Instruction, c []Coin) ([]StateC
 		return nil, nil, err
 	}
 	return []StateChange{
-		NewStateChange(Create, inst.InstanceID, cid, args),
+		NewStateChange(Create, inst.InstanceID, cid, args, inst.DarcID),
 	}, nil, nil
 }
 
@@ -960,7 +960,7 @@ func slowContractFunc(cdb CollectionView, inst Instruction, c []Coin) ([]StateCh
 		return nil, nil, err
 	}
 	return []StateChange{
-		NewStateChange(Create, inst.InstanceID, cid, args),
+		NewStateChange(Create, inst.InstanceID, cid, args, inst.DarcID),
 	}, nil, nil
 }
 

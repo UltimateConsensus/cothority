@@ -24,7 +24,7 @@ func ContractValue(cdb service.CollectionView, inst service.Instruction, c []ser
 	case inst.Spawn != nil:
 		return []service.StateChange{
 			service.NewStateChange(service.Create, inst.DeriveID(ContractValueID),
-				ContractValueID, inst.Spawn.Args.Search("value")),
+				ContractValueID, inst.Spawn.Args.Search("value"), inst.DarcID),
 		}, c, nil
 	case inst.Invoke != nil:
 		if inst.Invoke.Command != "update" {
@@ -32,11 +32,11 @@ func ContractValue(cdb service.CollectionView, inst service.Instruction, c []ser
 		}
 		return []service.StateChange{
 			service.NewStateChange(service.Update, inst.InstanceID,
-				ContractValueID, inst.Invoke.Args.Search("value")),
+				ContractValueID, inst.Invoke.Args.Search("value"), inst.DarcID),
 		}, c, nil
 	case inst.Delete != nil:
 		return service.StateChanges{
-			service.NewStateChange(service.Remove, inst.InstanceID, ContractValueID, nil),
+			service.NewStateChange(service.Remove, inst.InstanceID, ContractValueID, nil, inst.DarcID),
 		}, c, nil
 	}
 	return nil, nil, errors.New("didn't find any instruction")

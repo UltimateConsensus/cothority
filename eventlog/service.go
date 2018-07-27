@@ -165,8 +165,8 @@ func (s *Service) decodeAndCheckEvent(coll omniledger.CollectionView, eventBuf [
 }
 
 // invoke will add an event and update the corresponding indices.
-func (s *Service) invoke(v omniledger.CollectionView, tx omniledger.Instruction, c []omniledger.Coin) ([]omniledger.StateChange, []omniledger.Coin, error) {
-	cid, _, err := tx.GetContractState(v)
+func (s *Service) invoke(v omniledger.CollectionView, inst omniledger.Instruction, c []omniledger.Coin) ([]omniledger.StateChange, []omniledger.Coin, error) {
+	cid, _, err := inst.GetContractState(v)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -177,7 +177,7 @@ func (s *Service) invoke(v omniledger.CollectionView, tx omniledger.Instruction,
 	// All the state changes, at every step, go in here.
 	scs := []omniledger.StateChange{}
 
-	eventBuf := tx.Invoke.Args.Search("event")
+	eventBuf := inst.Invoke.Args.Search("event")
 	if eventBuf == nil {
 		return nil, nil, errors.New("expected a named argument of \"event\"")
 	}
@@ -188,9 +188,9 @@ func (s *Service) invoke(v omniledger.CollectionView, tx omniledger.Instruction,
 	}
 
 	// Get a new instance ID for storing this event.
-	eventID := tx.DeriveID("event")
+	eventID := inst.DeriveID("event")
 
-	scs = append(scs, omniledger.NewStateChange(omniledger.Create, eventID, cid, eventBuf))
+	scs = append(scs, omniledger.NewStateChange(omniledger.Create, eventID, cid, eventBuf, inst.DarcID))
 
 	// Walk from latest bucket back towards beginning looking for the right bucket.
 	//
@@ -205,7 +205,7 @@ func (s *Service) invoke(v omniledger.CollectionView, tx omniledger.Instruction,
 	// For now: buckets are allowed to grow as big as needed (but the previous
 	// rule prevents buckets from getting too big by timing them out).
 
-	el := &eventLog{Instance: tx.InstanceID, v: v}
+	el := &eventLog{Instance: inst.InstanceID, v: v}
 	bID, b, err := el.getLatestBucket()
 	if err != nil {
 		return nil, nil, err
@@ -229,13 +229,13 @@ func (s *Service) invoke(v omniledger.CollectionView, tx omniledger.Instruction,
 	//     or
 	//   Found a bucket, and it is head, and it is too old.
 	if b == nil || isHead && time.Duration(event.When-b.Start) > s.bucketMaxAge {
-		newBid := tx.DeriveID("bucket")
+		newBid := inst.DeriveID("bucket")
 
 		if b == nil {
 			// Special case: The first bucket for an eventlog
 			// needs a catch-all bucket before it, in case later
 			// events come in.
-			catchID := tx.DeriveID("bucket-catch-all")
+			catchID := inst.DeriveID("bucket-catch-all")
 			newb := &bucket{
 				Start:     0,
 				Prev:      nil,
@@ -245,7 +245,7 @@ func (s *Service) invoke(v omniledger.CollectionView, tx omniledger.Instruction,
 			if err != nil {
 				return nil, nil, err
 			}
-			scs = append(scs, omniledger.NewStateChange(omniledger.Create, catchID, cid, buf))
+			scs = append(scs, omniledger.NewStateChange(omniledger.Create, catchID, cid, buf, inst.DarcID))
 			bID = catchID.Slice()
 		}
 
@@ -261,10 +261,10 @@ func (s *Service) invoke(v omniledger.CollectionView, tx omniledger.Instruction,
 		if err != nil {
 			return nil, nil, err
 		}
-		scs = append(scs, omniledger.NewStateChange(omniledger.Create, newBid, cid, buf))
+		scs = append(scs, omniledger.NewStateChange(omniledger.Create, newBid, cid, buf, inst.DarcID))
 
 		// Update the pointer to the latest bucket.
-		scs = append(scs, omniledger.NewStateChange(omniledger.Update, tx.InstanceID, cid, newBid.Slice()))
+		scs = append(scs, omniledger.NewStateChange(omniledger.Update, inst.InstanceID, cid, newBid.Slice(), inst.DarcID))
 	} else {
 		// Otherwise just add into whatever bucket we found, no matter how
 		// many are already there. (Splitting buckets is hard and not important to us.)
@@ -284,8 +284,8 @@ func (s *Service) invoke(v omniledger.CollectionView, tx omniledger.Instruction,
 	return scs, nil, nil
 }
 
-func (s *Service) spawn(v omniledger.CollectionView, instr omniledger.Instruction, c []omniledger.Coin) ([]omniledger.StateChange, []omniledger.Coin, error) {
-	cid, _, err := instr.GetContractState(v)
+func (s *Service) spawn(v omniledger.CollectionView, inst omniledger.Instruction, c []omniledger.Coin) ([]omniledger.StateChange, []omniledger.Coin, error) {
+	cid, _, err := inst.GetContractState(v)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -293,20 +293,25 @@ func (s *Service) spawn(v omniledger.CollectionView, instr omniledger.Instructio
 		return nil, nil, errors.New("invalid contract ID: " + cid)
 	}
 
-	// We just need to store the key, because we make a Create state change
-	// here and all the following changes are Update.
-	return []omniledger.StateChange{omniledger.NewStateChange(omniledger.Create, omniledger.InstanceIDFromSlice(instr.Hash()), cid, make([]byte, 32))}, nil, nil
+	// Store zeros as the pointer to the first bucket because there are not yet
+	// any events in this event log.
+	return []omniledger.StateChange{
+		omniledger.NewStateChange(omniledger.Create, omniledger.InstanceIDFromSlice(inst.Hash()),
+			cid, make([]byte, 32), inst.DarcID),
+	}, nil, nil
 }
 
 // contractFunction is the function that runs to process a transaction of
 // type "eventlog"
-func (s *Service) contractFunction(v omniledger.CollectionView, tx omniledger.Instruction, c []omniledger.Coin) ([]omniledger.StateChange, []omniledger.Coin, error) {
-	if tx.GetType() == omniledger.InvokeType {
-		return s.invoke(v, tx, c)
-	} else if tx.GetType() == omniledger.SpawnType {
-		return s.spawn(v, tx, c)
+func (s *Service) contractFunction(v omniledger.CollectionView, inst omniledger.Instruction, c []omniledger.Coin) ([]omniledger.StateChange, []omniledger.Coin, error) {
+	switch inst.GetType() {
+	case omniledger.InvokeType:
+		return s.invoke(v, inst, c)
+	case omniledger.SpawnType:
+		return s.spawn(v, inst, c)
+	default:
+		return nil, nil, errors.New("invalid type")
 	}
-	return nil, nil, errors.New("invalid action")
 }
 
 // newService receives the context that holds information about the node it's

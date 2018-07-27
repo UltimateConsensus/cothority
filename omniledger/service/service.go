@@ -329,7 +329,7 @@ func (s *Service) createNewBlock(scID skipchain.SkipBlockID, r *onet.Roster, cts
 		// We have to register the verification functions in the genesis block
 		sb.VerifierIDs = []skipchain.VerifierID{skipchain.VerifyBase, verifyOmniLedger}
 
-		coll = collection.New(&collection.Data{}, &collection.Data{})
+		coll = collection.New(&collection.Data{}, &collection.Data{}, &collection.Data{})
 	} else {
 		// For all other blocks, we try to verify the signature using
 		// the darcs and remove those that do not have a valid
@@ -886,7 +886,7 @@ func (s *Service) startViewChange(scID skipchain.SkipBlockID) error {
 	}
 
 	newRoster := onet.NewRoster(append(sb.Roster.List[1:], sb.Roster.List[0]))
-	genesisDarcID, _, err := s.GetCollectionView(scID).GetValues(GenesisReferenceID.Slice())
+	genesisDarcID, _, _, err := s.GetCollectionView(scID).GetValues(GenesisReferenceID.Slice())
 	if err != nil {
 		return err
 	}

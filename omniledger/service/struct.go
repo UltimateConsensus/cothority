@@ -33,7 +33,7 @@ type CollectionView interface {
 	// GetValues returns the value and the contractID of the given key, or
 	// an error if something went wrong. A non-existing key returns an
 	// error.
-	GetValues(key []byte) (value []byte, contractID string, err error)
+	GetValues(key []byte) (value []byte, contractID string, darcID darc.ID, err error)
 	// GetSkipchainID gets the skipchain ID that this collection view
 	// represents.
 	GetSkipchainID() skipchain.SkipBlockID
@@ -56,7 +56,7 @@ func (r *roCollection) Get(key []byte) collection.Getter {
 
 // GetValues returns the value of the key and the contractID. If the key
 // does not exist, it returns an error.
-func (r *roCollection) GetValues(key []byte) (value []byte, contractID string, err error) {
+func (r *roCollection) GetValues(key []byte) (value []byte, contractID string, darcID darc.ID, err error) {
 	record, err := r.c.Get(key).Record()
 	if err != nil {
 		return
@@ -83,7 +83,7 @@ func newCollectionDB(db *bolt.DB, name []byte) *collectionDB {
 	c := &collectionDB{
 		db:         db,
 		bucketName: name,
-		coll:       collection.New(collection.Data{}, collection.Data{}),
+		coll:       collection.New(collection.Data{}, collection.Data{}, collection.Data{}),
 	}
 	c.db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucket(name)
@@ -111,19 +111,25 @@ func (c *collectionDB) loadAll() error {
 		cur := b.Cursor()
 
 		for k, v := cur.First(); k != nil; k, v = cur.Next() {
-			// This is a Contract key, skip it.
-			if len(k) > 0 && k[0] == 'C' {
+			// Only look at value keys
+			if len(k) > 0 && k[0] != 0 {
 				continue
 			}
-			kc := make([]byte, len(k)+1)
-			kc[0] = 'C'
-			copy(kc[1:], k)
 
-			cv := b.Get(kc)
+			k2 := dup(k)
+			k2[0] = 1
+			cv := b.Get(k2)
 			if cv == nil {
-				return fmt.Errorf("contract ype missing for object ID %x", k)
+				return fmt.Errorf("contract type missing for object ID %x", k[1:])
 			}
-			err := c.coll.Add(dup(k), dup(v), dup(cv))
+
+			k2[0] = 2
+			dv := b.Get(k2)
+			if dv == nil {
+				return fmt.Errorf("darcID missing for object ID %x", k[1:])
+			}
+
+			err := c.coll.Add(dup(k[1:]), dup(v), dup(cv), dup(dv))
 			if err != nil {
 				return err
 			}
@@ -136,9 +142,9 @@ func (c *collectionDB) loadAll() error {
 func storeInColl(coll *collection.Collection, t *StateChange) error {
 	switch t.StateAction {
 	case Create:
-		return coll.Add(t.InstanceID, t.Value, t.ContractID)
+		return coll.Add(t.InstanceID, t.Value, t.ContractID, []byte(t.DarcID))
 	case Update:
-		return coll.Set(t.InstanceID, t.Value, t.ContractID)
+		return coll.Set(t.InstanceID, t.Value, t.ContractID, []byte(t.DarcID))
 	case Remove:
 		return coll.Remove(t.InstanceID)
 	default:
@@ -150,7 +156,7 @@ func (c *collectionDB) Get(key []byte) collection.Getter {
 	return c.coll.Get(key)
 }
 
-func (c *collectionDB) GetValues(key []byte) (value []byte, contractID string, err error) {
+func (c *collectionDB) GetValues(key []byte) (value []byte, contractID string, darcID darc.ID, err error) {
 	record, err := c.coll.Get(key).Record()
 	if err != nil {
 		return
@@ -158,29 +164,47 @@ func (c *collectionDB) GetValues(key []byte) (value []byte, contractID string, e
 	return getValuesFromRecord(record, key)
 }
 
-func (c *collectionDB) Store(t *StateChange) error {
-	if err := storeInColl(c.coll, t); err != nil {
+func (c *collectionDB) Store(sc *StateChange) error {
+	if err := storeInColl(c.coll, sc); err != nil {
 		return err
 	}
 	err := c.db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(c.bucketName))
 
-		// The contract type is stored in a key starting with C
-		keyC := make([]byte, 1+len(t.InstanceID))
-		keyC[0] = byte('C')
-		copy(keyC[1:], t.InstanceID)
+		// The 3 pieces of data (value, contract, darcid) are stored under three keys
+		// starting with 0, 1, 2.
+		key := make([]byte, 1+len(sc.InstanceID))
+		copy(key[1:], sc.InstanceID)
 
-		switch t.StateAction {
+		switch sc.StateAction {
 		case Create, Update:
-			if err := bucket.Put(t.InstanceID, t.Value); err != nil {
+			key[0] = 0
+			if err := bucket.Put(key, sc.Value); err != nil {
 				return err
 			}
-			return bucket.Put(keyC, t.ContractID)
+			key[0] = 1
+			if err := bucket.Put(key, sc.ContractID); err != nil {
+				return err
+			}
+			key[0] = 2
+			if err := bucket.Put(key, []byte(sc.DarcID)); err != nil {
+				return err
+			}
+			return nil
 		case Remove:
-			if err := bucket.Delete(t.InstanceID); err != nil {
+			key[0] = 0
+			if err := bucket.Delete(key); err != nil {
 				return err
 			}
-			return bucket.Delete(keyC)
+			key[0] = 1
+			if err := bucket.Delete(key); err != nil {
+				return err
+			}
+			key[0] = 2
+			if err := bucket.Delete(key); err != nil {
+				return err
+			}
+			return nil
 		default:
 			return errors.New("invalid state action")
 		}
@@ -225,21 +249,37 @@ func (c *collectionDB) RootHash() []byte {
 	return c.coll.GetRoot()
 }
 
-func getValuesFromRecord(record collection.Record, key []byte) (value []byte, contractID string, err error) {
+func getValuesFromRecord(record collection.Record, key []byte) (value []byte, contractID string, darcID darc.ID, err error) {
 	values, err := record.Values()
 	if err != nil {
 		return
 	}
+	if len(values) != 3 {
+		err = errors.New("values does not have 3 elements")
+		return
+	}
+
 	var ok bool
 	value, ok = values[0].([]byte)
 	if !ok {
-		err = errors.New("first value is not a slice of bytes")
+		err = errors.New("values[0] is not a slice of bytes")
 		return
 	}
-	contractID, ok = values[1].(string)
+
+	c, ok := values[1].([]byte)
 	if !ok {
-		contractID = string(values[1].([]byte))
+		err = errors.New("values[1] is not a slice of bytes")
+		return
 	}
+	contractID = string(c)
+
+	did, ok := values[2].([]byte)
+	if !ok {
+		err = errors.New("values[2] is not a slice of bytes")
+		return
+	}
+	darcID = darc.ID(did)
+
 	return
 }
 
@@ -247,7 +287,7 @@ func getValuesFromRecord(record collection.Record, key []byte) (value []byte, co
 // in the transactions had been added, without actually adding it.
 func (c *collectionDB) tryHash(ts []StateChange) (mr []byte, rerr error) {
 	for _, sc := range ts {
-		err := c.coll.Add(sc.InstanceID, sc.Value, sc.ContractID)
+		err := c.coll.Add(sc.InstanceID, sc.Value, sc.ContractID, []byte(sc.DarcID))
 		if err != nil {
 			rerr = err
 			return

@@ -279,12 +279,13 @@ func (cts ClientTransactions) IsEmpty() bool {
 
 // NewStateChange is a convenience function that fills out a StateChange
 // structure.
-func NewStateChange(sa StateAction, iID InstanceID, contractID string, value []byte) StateChange {
+func NewStateChange(sa StateAction, iID InstanceID, contractID string, value []byte, darcID darc.ID) StateChange {
 	return StateChange{
 		StateAction: sa,
 		InstanceID:  iID.Slice(),
 		ContractID:  []byte(contractID),
 		Value:       value,
+		DarcID:      darcID,
 	}
 }
 

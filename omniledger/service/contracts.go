@@ -131,7 +131,7 @@ func (s *Service) invokeContractConfig(cdb CollectionView, inst Instruction, coi
 			return
 		}
 		sc = []StateChange{
-			NewStateChange(Update, DeriveConfigID(inst.DarcID), ContractConfigID, configBuf),
+			NewStateChange(Update, DeriveConfigID(inst.DarcID), ContractConfigID, configBuf, inst.DarcID),
 		}
 		return
 	} else if inst.Invoke.Command == "view_change" {
@@ -171,7 +171,7 @@ func updateRosterScs(cdb CollectionView, darcID darc.ID, newRoster onet.Roster) 
 	}
 
 	return []StateChange{
-		NewStateChange(Update, DeriveConfigID(darcID), ContractConfigID, configBuf),
+		NewStateChange(Update, DeriveConfigID(darcID), ContractConfigID, configBuf, darcID),
 	}, nil
 }
 
@@ -232,9 +232,9 @@ func (s *Service) spawnContractConfig(cdb CollectionView, inst Instruction, coin
 
 	id := d.GetBaseID()
 	return []StateChange{
-		NewStateChange(Create, GenesisReferenceID, ContractConfigID, id),
-		NewStateChange(Create, InstanceIDFromSlice(id), ContractDarcID, darcBuf),
-		NewStateChange(Create, DeriveConfigID(id), ContractConfigID, configBuf),
+		NewStateChange(Create, GenesisReferenceID, ContractConfigID, id, id),
+		NewStateChange(Create, InstanceIDFromSlice(id), ContractDarcID, darcBuf, id),
+		NewStateChange(Create, DeriveConfigID(id), ContractConfigID, configBuf, id),
 	}, c, nil
 
 }
@@ -262,8 +262,9 @@ func (s *Service) ContractDarc(coll CollectionView, inst Instruction, coins []Co
 			if err != nil {
 				return nil, nil, errors.New("given darc could not be decoded: " + err.Error())
 			}
+			id := d.GetBaseID()
 			return []StateChange{
-				NewStateChange(Create, InstanceIDFromSlice(d.GetBaseID()), ContractDarcID, darcBuf),
+				NewStateChange(Create, InstanceIDFromSlice(id), ContractDarcID, darcBuf, id),
 			}, coins, nil
 		}
 		// TODO The code below will never get called because this
@@ -292,7 +293,7 @@ func (s *Service) ContractDarc(coll CollectionView, inst Instruction, coins []Co
 				return nil, nil, err
 			}
 			return []StateChange{
-				NewStateChange(Update, inst.InstanceID, ContractDarcID, darcBuf),
+				NewStateChange(Update, inst.InstanceID, ContractDarcID, darcBuf, inst.DarcID),
 			}, coins, nil
 		default:
 			return nil, nil, errors.New("invalid command: " + inst.Invoke.Command)

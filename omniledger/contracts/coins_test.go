@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/dedis/cothority/omniledger/collection"
+	"github.com/dedis/cothority/omniledger/darc"
 	omniledger "github.com/dedis/cothority/omniledger/service"
 	"github.com/dedis/cothority/skipchain"
 	"github.com/stretchr/testify/require"
@@ -34,7 +35,7 @@ func TestCoin_Spawn(t *testing.T) {
 	require.Equal(t, 1, len(sc))
 	ca := omniledger.InstanceIDFromSlice(inst.Hash())
 	require.Equal(t, omniledger.NewStateChange(omniledger.Create, ca,
-		ContractCoinID, coinZero), sc[0])
+		ContractCoinID, coinZero, inst.DarcID), sc[0])
 	require.Equal(t, 0, len(co))
 }
 
@@ -42,7 +43,7 @@ func TestCoin_InvokeMint(t *testing.T) {
 	// Test that a coin can be minted
 	ct := newCT()
 	coAddr := omniledger.InstanceID{}
-	ct.Store(coAddr, coinZero, ContractCoinID)
+	ct.Store(coAddr, coinZero, ContractCoinID, nil)
 
 	inst := omniledger.Instruction{
 		InstanceID: coAddr,
@@ -55,7 +56,7 @@ func TestCoin_InvokeMint(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 0, len(co))
 	require.Equal(t, 1, len(sc))
-	require.Equal(t, omniledger.NewStateChange(omniledger.Update, coAddr, ContractCoinID, coinOne),
+	require.Equal(t, omniledger.NewStateChange(omniledger.Update, coAddr, ContractCoinID, coinOne, inst.DarcID),
 		sc[0])
 }
 
@@ -63,7 +64,7 @@ func TestCoin_InvokeOverflow(t *testing.T) {
 	uint64max := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 	ct := newCT()
 	coAddr := omniledger.InstanceID{}
-	ct.Store(coAddr, uint64max, ContractCoinID)
+	ct.Store(coAddr, uint64max, ContractCoinID, nil)
 
 	inst := omniledger.Instruction{
 		InstanceID: coAddr,
@@ -82,7 +83,7 @@ func TestCoin_InvokeOverflow(t *testing.T) {
 func TestCoin_InvokeStoreFetch(t *testing.T) {
 	ct := newCT()
 	coAddr := omniledger.InstanceID{}
-	ct.Store(coAddr, coinZero, ContractCoinID)
+	ct.Store(coAddr, coinZero, ContractCoinID, nil)
 
 	inst := omniledger.Instruction{
 		InstanceID: coAddr,
@@ -100,7 +101,7 @@ func TestCoin_InvokeStoreFetch(t *testing.T) {
 	require.Equal(t, 1, len(co))
 	require.Equal(t, co[0].Name, notOlCoin)
 	require.Equal(t, 1, len(sc))
-	require.Equal(t, omniledger.NewStateChange(omniledger.Update, coAddr, ContractCoinID, coinOne),
+	require.Equal(t, omniledger.NewStateChange(omniledger.Update, coAddr, ContractCoinID, coinOne, inst.DarcID),
 		sc[0])
 
 	inst = omniledger.Instruction{
@@ -116,7 +117,7 @@ func TestCoin_InvokeStoreFetch(t *testing.T) {
 	require.Error(t, err)
 
 	// Apply the changes to the mock collection.
-	ct.Store(coAddr, coinOne, ContractCoinID)
+	ct.Store(coAddr, coinOne, ContractCoinID, nil)
 
 	sc, co, err = ContractCoin(ct, inst, nil)
 	require.Nil(t, err)
@@ -124,7 +125,7 @@ func TestCoin_InvokeStoreFetch(t *testing.T) {
 	require.Equal(t, co[0].Name, CoinName)
 	require.Equal(t, uint64(1), co[0].Value)
 	require.Equal(t, 1, len(sc))
-	require.Equal(t, omniledger.NewStateChange(omniledger.Update, coAddr, ContractCoinID, coinZero),
+	require.Equal(t, omniledger.NewStateChange(omniledger.Update, coAddr, ContractCoinID, coinZero, inst.DarcID),
 		sc[0])
 }
 
@@ -136,8 +137,8 @@ func TestCoin_InvokeTransfer(t *testing.T) {
 	one[31] = 1
 	coAddr2 := omniledger.InstanceIDFromSlice(one)
 
-	ct.Store(coAddr1, coinOne, ContractCoinID)
-	ct.Store(coAddr2, coinZero, ContractCoinID)
+	ct.Store(coAddr1, coinOne, ContractCoinID, nil)
+	ct.Store(coAddr2, coinZero, ContractCoinID, nil)
 
 	// First create an instruction where the transfer should fail
 	inst := omniledger.Instruction{
@@ -167,29 +168,35 @@ func TestCoin_InvokeTransfer(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 0, len(co))
 	require.Equal(t, 2, len(sc))
-	require.Equal(t, omniledger.NewStateChange(omniledger.Update, coAddr2, ContractCoinID, coinOne), sc[0])
-	require.Equal(t, omniledger.NewStateChange(omniledger.Update, coAddr1, ContractCoinID, coinZero), sc[1])
+	require.Equal(t, omniledger.NewStateChange(omniledger.Update, coAddr2, ContractCoinID, coinOne, inst.DarcID), sc[0])
+	require.Equal(t, omniledger.NewStateChange(omniledger.Update, coAddr1, ContractCoinID, coinZero, inst.DarcID), sc[1])
 }
 
 type cvTest struct {
 	values      map[string][]byte
 	contractIDs map[string]string
+	darcIDs     map[string]darc.ID
 }
 
 func newCT() *cvTest {
-	return &cvTest{make(map[string][]byte), make(map[string]string)}
+	return &cvTest{
+		make(map[string][]byte),
+		make(map[string]string),
+		make(map[string]darc.ID),
+	}
 }
 
 func (ct cvTest) Get(key []byte) collection.Getter {
 	panic("not implemented")
 }
-func (ct *cvTest) Store(key omniledger.InstanceID, value []byte, contractID string) {
+func (ct *cvTest) Store(key omniledger.InstanceID, value []byte, contractID string, darcID darc.ID) {
 	k := string(key.Slice())
 	ct.values[k] = value
 	ct.contractIDs[k] = contractID
+	ct.darcIDs[k] = darcID
 }
-func (ct cvTest) GetValues(key []byte) (value []byte, contractID string, err error) {
-	return ct.values[string(key)], ct.contractIDs[string(key)], nil
+func (ct cvTest) GetValues(key []byte) (value []byte, contractID string, darcID darc.ID, err error) {
+	return ct.values[string(key)], ct.contractIDs[string(key)], ct.darcIDs[string(key)], nil
 }
 func (ct cvTest) GetValue(key []byte) ([]byte, error) {
 	return ct.values[string(key)], nil

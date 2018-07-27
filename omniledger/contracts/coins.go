@@ -65,13 +65,13 @@ func ContractCoin(cdb omniledger.CollectionView, inst omniledger.Instruction, c 
 		ca := omniledger.InstanceIDFromSlice(inst.Hash())
 		log.Lvlf3("Spawing coin to %x", ca.Slice())
 		sc = []omniledger.StateChange{
-			omniledger.NewStateChange(omniledger.Create, ca, ContractCoinID, make([]byte, 8)),
+			omniledger.NewStateChange(omniledger.Create, ca, ContractCoinID, make([]byte, 8), inst.DarcID),
 		}
 		return
 	case omniledger.InvokeType:
 		// Invoke is one of "mint", "transfer", "fetch", or "store".
 		var value []byte
-		value, _, err = cdb.GetValues(inst.InstanceID.Slice())
+		value, _, _, err = cdb.GetValues(inst.InstanceID.Slice())
 		if err != nil {
 			return
 		}
@@ -106,7 +106,7 @@ func ContractCoin(cdb omniledger.CollectionView, inst omniledger.Instruction, c 
 				v   []byte
 				cid string
 			)
-			v, cid, err = cdb.GetValues(target)
+			v, cid, _, err = cdb.GetValues(target)
 			if err == nil && cid != ContractCoinID {
 				err = errors.New("destination is not a coin contract")
 			}
@@ -124,7 +124,7 @@ func ContractCoin(cdb omniledger.CollectionView, inst omniledger.Instruction, c 
 
 			log.Lvlf3("transferring %d to %x", coinsArg, target)
 			sc = append(sc, omniledger.NewStateChange(omniledger.Update, omniledger.InstanceIDFromSlice(target),
-				ContractCoinID, w.Bytes()))
+				ContractCoinID, w.Bytes(), inst.DarcID))
 		case "fetch":
 			// fetch removes coins from the account and passes it on to the next
 			// instruction.
@@ -158,12 +158,12 @@ func ContractCoin(cdb omniledger.CollectionView, inst omniledger.Instruction, c 
 		var w bytes.Buffer
 		binary.Write(&w, binary.LittleEndian, coinsCurrent)
 		sc = append(sc, omniledger.NewStateChange(omniledger.Update, inst.InstanceID,
-			ContractCoinID, w.Bytes()))
+			ContractCoinID, w.Bytes(), inst.DarcID))
 		return
 	case omniledger.DeleteType:
 		// Delete our coin address, but only if the current coin is empty.
 		var value []byte
-		value, _, err = cdb.GetValues(inst.InstanceID.Slice())
+		value, _, _, err = cdb.GetValues(inst.InstanceID.Slice())
 		if err != nil {
 			return
 		}
@@ -173,7 +173,7 @@ func ContractCoin(cdb omniledger.CollectionView, inst omniledger.Instruction, c 
 			return
 		}
 		sc = omniledger.StateChanges{
-			omniledger.NewStateChange(omniledger.Remove, inst.InstanceID, ContractCoinID, nil),
+			omniledger.NewStateChange(omniledger.Remove, inst.InstanceID, ContractCoinID, nil, inst.DarcID),
 		}
 		return
 	}

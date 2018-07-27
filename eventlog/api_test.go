@@ -181,7 +181,7 @@ func checkProof(t *testing.T, omni *omniledger.Service, key []byte, scID skipcha
 	require.True(t, p.Match(), "proof of exclusion of index")
 
 	v, _ := p.Values()
-	require.Equal(t, 2, len(v), "wrong values length")
+	require.Equal(t, 3, len(v), "wrong values length")
 
 	return v[0].([]byte)
 }
