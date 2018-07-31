@@ -171,11 +171,11 @@ func TestCoin_InvokeTransfer(t *testing.T) {
 
 type cvTest struct {
 	values      map[string][]byte
-	contractIDs map[string]string
+	contractIDs map[string][]byte
 }
 
 func newCT() *cvTest {
-	return &cvTest{make(map[string][]byte), make(map[string]string)}
+	return &cvTest{make(map[string][]byte), make(map[string][]byte)}
 }
 
 func (ct cvTest) Get(key []byte) collection.Getter {
@@ -184,14 +184,14 @@ func (ct cvTest) Get(key []byte) collection.Getter {
 func (ct *cvTest) Store(key omniledger.InstanceID, value []byte, contractID string) {
 	k := string(key.Slice())
 	ct.values[k] = value
-	ct.contractIDs[k] = contractID
+	ct.contractIDs[k] = []byte(contractID)
 }
-func (ct cvTest) GetValues(key []byte) (value []byte, contractID string, err error) {
+func (ct cvTest) GetValues(key []byte) (value []byte, contractID []byte, err error) {
 	return ct.values[string(key)], ct.contractIDs[string(key)], nil
 }
 func (ct cvTest) GetValue(key []byte) ([]byte, error) {
 	return ct.values[string(key)], nil
 }
 func (ct cvTest) GetContractID(key []byte) (string, error) {
-	return ct.contractIDs[string(key)], nil
+	return string(ct.contractIDs[string(key)]), nil
 }

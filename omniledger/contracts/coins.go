@@ -107,10 +107,10 @@ func ContractCoin(cdb omniledger.CollectionView, inst omniledger.Instruction, c 
 			target := inst.Invoke.Args.Search("destination")
 			var (
 				v   []byte
-				cid string
+				cid []byte
 			)
 			v, cid, err = cdb.GetValues(target)
-			if err == nil && cid != ContractCoinID {
+			if err == nil && !bytes.Equal(cid, []byte(ContractCoinID)) {
 				err = errors.New("destination is not a coin contract")
 			}
 			if err != nil {
