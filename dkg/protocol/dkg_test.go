@@ -1,4 +1,4 @@
-package dkg
+package protocol
 
 import (
 	"testing"
@@ -32,8 +32,8 @@ func setupDKG(t *testing.T, nbrNodes int) {
 	_, _, tree := local.GenBigTree(nbrNodes, nbrNodes, nbrNodes, true)
 	log.Lvl3(tree.Dump())
 
-	pi, err := local.CreateProtocol(NameDKG, tree)
-	protocol := pi.(*SetupDKG)
+	pi, err := local.CreateProtocol(Name, tree)
+	protocol := pi.(*Setup)
 	protocol.Wait = true
 	if err != nil {
 		t.Fatal("Couldn't start protocol:", err)
